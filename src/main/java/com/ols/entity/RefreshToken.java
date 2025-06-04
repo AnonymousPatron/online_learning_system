@@ -2,8 +2,13 @@ package com.ols.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
 
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
@@ -21,9 +26,14 @@ public class RefreshToken {
     @Column(name = "refresh_token", nullable = false)
     private String refreshToken;
 
-    public RefreshToken(Long userId, String refreshToken) {
+    @Column(name = "expiry_date", nullable = false)
+    private Instant expiryDate;
+
+    @Builder
+    public RefreshToken(Long userId, String refreshToken, Instant expiryDate) {
         this.userId = userId;
         this.refreshToken = refreshToken;
+        this.expiryDate = expiryDate;
     }
 
     public RefreshToken update(String newRefreshToken) {

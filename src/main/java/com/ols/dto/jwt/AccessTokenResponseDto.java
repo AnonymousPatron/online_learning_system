@@ -1,10 +1,9 @@
-package com.ols.dto;
+package com.ols.dto.jwt;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-@AllArgsConstructor
 @Getter
-public class CreateAccessTokenResponse {
+public class AccessTokenResponseDto {
     private String accessToken;
 }

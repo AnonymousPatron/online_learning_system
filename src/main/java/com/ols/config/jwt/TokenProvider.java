@@ -19,9 +19,15 @@ import java.util.Set;
 @RequiredArgsConstructor
 @Service
 public class TokenProvider {
+
     private final JwtProperties jwtProperties;
 
-    public String generateToken(User user, Duration expiredAt) {
+    public String generateAccessToken(User user, Duration expiredAt) {
+        Date now = new Date();
+        return makeToken(new Date(now.getTime() + expiredAt.toMillis()), user);
+    }
+
+    public String generateRefreshToken(User user, java.time.Duration expiredAt) {
         Date now = new Date();
         return makeToken(new Date(now.getTime() + expiredAt.toMillis()), user);
     }
@@ -29,18 +35,15 @@ public class TokenProvider {
     private String makeToken(Date expiry, User user) {
         Date now = new Date();
 
-        Header jwtHeader = Jwts.header()
-                .type("JWT")
-                .build();
-
         return Jwts.builder()
-                .header().add(jwtHeader).and()
+                .header()
+                .type("JWT")
+                .and()
                 .issuer(jwtProperties.getIssuer())
                 .issuedAt(now)
                 .expiration(expiry)
                 .subject(user.getUsername())
                 .claim("id", user.getId())
-                .claim("username", user.getUsername())
                 .signWith(Keys.hmacShaKeyFor(jwtProperties.getSecretKey().getBytes()))
                 .compact();
     }
@@ -51,7 +54,6 @@ public class TokenProvider {
                     .verifyWith(Keys.hmacShaKeyFor(jwtProperties.getSecretKey().getBytes()))
                     .build()
                     .parseSignedClaims(token);
-
             return true;
         } catch (Exception e) {
             return false;
@@ -72,6 +74,10 @@ public class TokenProvider {
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
+    }
+
+    public String getUserIdFromToken(String token) {
+        return getClaims(token).getId();
     }
 
 }

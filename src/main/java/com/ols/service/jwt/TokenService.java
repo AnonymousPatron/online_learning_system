@@ -1,7 +1,9 @@
-package com.ols.service;
+package com.ols.service.jwt;
 
 import com.ols.config.jwt.TokenProvider;
 import com.ols.entity.User;
+import com.ols.service.jwt.RefreshTokenService;
+import com.ols.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -24,7 +26,7 @@ public class TokenService {
         Long userId = refreshTokenService.findByRefreshToken(refreshToken).getUserId();
         User user = userService.findById(userId);
 
-        return tokenProvider.generateToken(user, Duration.ofHours(2));
+        return tokenProvider.generateAccessToken(user, Duration.ofHours(2));
     }
 
 }

@@ -1,8 +1,8 @@
-package com.ols.dto;
+package com.ols.dto.jwt;
 
 import lombok.Getter;
 
 @Getter
-public class CreateAccessTokenRequest {
+public class AccessTokenRequestDto {
     private String refreshToken;
 }
