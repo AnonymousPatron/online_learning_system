@@ -3,19 +3,16 @@ package com.ols.config;
 import com.ols.config.jwt.TokenProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import org.antlr.v4.runtime.misc.NotNull;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 @RequiredArgsConstructor
 @Component
@@ -26,55 +23,19 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
     private final static String HEADER_AUTHORIZATION = "Authorization";
     private final static String TOKEN_PREFIX = "Bearer ";
 
-//    @Override
-//    protected void doFilterInternal(
-//            HttpServletRequest request,
-//            @NonNull HttpServletResponse response,
-//            @NonNull FilterChain filterChain)  throws ServletException, IOException {
-//
-//        String authorizationHeader = request.getHeader(HEADER_AUTHORIZATION);
-//        String token = getAccessToken(authorizationHeader);
-//
-//        if (tokenProvider.validToken(token)) {
-//            Authentication authentication = tokenProvider.getAuthentication(token);
-//            SecurityContextHolder.getContext().setAuthentication(authentication);
-//        }
-//
-//        filterChain.doFilter(request, response);
-//    }
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain)  throws ServletException, IOException {
 
-        System.out.println("doFilterInternal");
-        // 1. Authorization 헤더에서 토큰 추출 시도 (기존 로직)
-        String token = getAccessToken(request.getHeader(HEADER_AUTHORIZATION));
-        System.out.println("token: " + token);
-        // 2. 만약 헤더에 없으면 쿠키에서 토큰 추출 시도 (추가된 로직)
-        if (token == null) {
-            Cookie[] cookies = request.getCookies();
-            System.out.println("cookies: " + Arrays.toString(cookies));
-            if (cookies != null) {
-                System.out.println("Found cookies");
-                for (Cookie cookie : cookies) {
-                    if ("accessToken".equals(cookie.getName())) {
-                        System.out.println("Found cookie");
-                        token = cookie.getValue();
-                        break;
-                    }
-                }
-            }
-        }
+        String token = request.getHeader("accessToken");
 
         // 3. 추출된 토큰으로 유효성 검사 및 SecurityContext 설정
         if (tokenProvider.validToken(token)) {
             Authentication authentication = tokenProvider.getAuthentication(token);
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } else {
-            // 토큰이 없거나 유효하지 않은 경우, SecurityContext를 비워줌
-            // 이렇게 하지 않으면 이전에 설정된 인증 정보가 남아있을 수 있습니다.
             SecurityContextHolder.clearContext();
         }
 

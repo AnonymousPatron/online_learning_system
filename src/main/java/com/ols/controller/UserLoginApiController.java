@@ -12,7 +12,9 @@ import com.ols.service.jwt.RefreshTokenService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -61,21 +63,27 @@ public class UserLoginApiController {
             RefreshToken refreshTokenEntity = refreshTokenService.createRefreshToken(user, Duration.ofDays(1));
             String refreshToken = refreshTokenEntity.getRefreshToken();
 
-            // HttpOnly 쿠키에 access Token 저장
-            Cookie accessTokenCookie = new Cookie("accessToken", accessToken);
-//            accessTokenCookie.setDomain("localhost");
-            accessTokenCookie.setHttpOnly(true);
-            accessTokenCookie.setPath("/"); // access Token 요청을 위한 특정 경로 설정 고려
-            accessTokenCookie.setMaxAge((int) Duration.ofDays(1).toSeconds()); // 쿠키 유효 시간 설정
-            response.addCookie(accessTokenCookie);
+            // HttpOnly 쿠키에 access Token 저장 (ResponseCookie 사용)
+            ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", accessToken)
+                    .httpOnly(true)
+                    .path("/")
+                    .maxAge(Duration.ofHours(2)) // access token 유효 기간과 일치
+                    .secure(false) // ★★★ HTTP 환경이므로 false. HTTPS 환경에서는 true. ★★★
+                    .sameSite("Lax") // ★★★ localhost에서 HTTP 통신 시 가장 안정적인 값 ★★★
+                    // .domain("localhost") // localhost에서는 명시하지 않는 것이 좋습니다.
+                    .build();
+            response.addHeader(HttpHeaders.SET_COOKIE, accessTokenCookie.toString());
 
-            // HttpOnly 쿠키에 Refresh Token 저장
-            Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
-//            refreshTokenCookie.setDomain("localhost");
-            refreshTokenCookie.setHttpOnly(true);
-            refreshTokenCookie.setPath("/refresh"); // Refresh Token 요청을 위한 특정 경로 설정 고려
-            refreshTokenCookie.setMaxAge((int) Duration.ofDays(1).toSeconds()); // 쿠키 유효 시간 설정
-            response.addCookie(refreshTokenCookie);
+            // HttpOnly 쿠키에 Refresh Token 저장 (ResponseCookie 사용)
+            ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", refreshToken)
+                    .httpOnly(true)
+                    .path("/refresh") // refresh token을 사용하는 경로
+                    .maxAge(Duration.ofDays(1)) // refresh token 유효 기간
+                    .secure(false) // ★★★ HTTP 환경이므로 false. HTTPS 환경에서는 true. ★★★
+                    .sameSite("Lax") // ★★★ localhost에서 HTTP 통신 시 가장 안정적인 값 ★★★
+                    // .domain("localhost") // localhost에서는 명시하지 않는 것이 좋습니다.
+                    .build();
+            response.addHeader(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString());
 
             return ResponseEntity.ok().body(LoginResponseDto.builder()
                     .accessToken(accessToken)
@@ -88,7 +96,7 @@ public class UserLoginApiController {
     }
 
     @PostMapping("/token/refresh")
-    public ResponseEntity<?> refreshToken(@RequestBody RefreshTokenRequest refreshTokenRequest) {
+    public ResponseEntity<?> refreshToken(@RequestBody RefreshTokenRequest refreshTokenRequest, HttpServletResponse response) {
         String refreshToken = refreshTokenRequest.getRefreshToken();
 
         if (refreshToken != null) {
@@ -101,11 +109,32 @@ public class UserLoginApiController {
                 refreshTokenEntity.update(newRefreshToken);
                 refreshTokenService.save(refreshTokenEntity);
 
-                Map<String, String> tokens = new HashMap<>();
-                tokens.put("accessToken", newAccessToken);
-                tokens.put("refreshToken", newRefreshToken);
+                ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", newAccessToken)
+                        .httpOnly(true)
+                        .path("/")
+                        .maxAge(Duration.ofHours(2)) // access token 유효 기간과 일치
+                        .secure(false) // ★★★ HTTP 환경이므로 false. HTTPS 환경에서는 true. ★★★
+                        .sameSite("Lax") // ★★★ localhost에서 HTTP 통신 시 가장 안정적인 값 ★★★
+                        // .domain("localhost") // localhost에서는 명시하지 않는 것이 좋습니다.
+                        .build();
+                response.addHeader(HttpHeaders.SET_COOKIE, accessTokenCookie.toString());
 
-                return ResponseEntity.ok(tokens);
+                // HttpOnly 쿠키에 Refresh Token 저장 (ResponseCookie 사용)
+                ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", refreshToken)
+                        .httpOnly(true)
+                        .path("/refresh") // refresh token을 사용하는 경로
+                        .maxAge(Duration.ofDays(1)) // refresh token 유효 기간
+                        .secure(false) // ★★★ HTTP 환경이므로 false. HTTPS 환경에서는 true. ★★★
+                        .sameSite("Lax") // ★★★ localhost에서 HTTP 통신 시 가장 안정적인 값 ★★★
+                        // .domain("localhost") // localhost에서는 명시하지 않는 것이 좋습니다.
+                        .build();
+                response.addHeader(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString());
+
+                return ResponseEntity.ok().body(LoginResponseDto.builder()
+                        .accessToken(newAccessToken)
+                        .refreshToken(newRefreshToken)
+                        .build()
+                );
             }
         }
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid refresh token");
