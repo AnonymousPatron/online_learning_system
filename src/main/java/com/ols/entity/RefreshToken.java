@@ -23,7 +23,7 @@ public class RefreshToken {
     @Column(name = "user_id", nullable = false, unique = true)
     private Long userId;
 
-    @Column(name = "refresh_token", nullable = false)
+    @Column(name = "refresh_token", nullable = false, length = 1000)
     private String refreshToken;
 
     @Column(name = "expiry_date", nullable = false)
@@ -36,9 +36,9 @@ public class RefreshToken {
         this.expiryDate = expiryDate;
     }
 
-    public RefreshToken update(String newRefreshToken) {
+    public RefreshToken update(String newRefreshToken, Instant newExpiryDate) {
         this.refreshToken = newRefreshToken;
-
+        this.expiryDate = newExpiryDate;
         return this;
     }
 

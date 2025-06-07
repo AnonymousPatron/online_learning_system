@@ -13,7 +13,7 @@ spring:
 
 logging:
   file:
-    name: /logs/application.log
+    name: logs/application.log
   level:
     org:
       hibernate:

@@ -1,9 +1,7 @@
 package com.ols.config.jwt;
 
 import com.ols.entity.User;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Header;
-import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -11,6 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
 
+import javax.crypto.SecretKey;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Date;
@@ -21,15 +20,26 @@ import java.util.Set;
 public class TokenProvider {
 
     private final JwtProperties jwtProperties;
+    private SecretKey cachedSecretKey;
 
-    public String generateAccessToken(User user, Duration expiredAt) {
-        Date now = new Date();
-        return makeToken(new Date(now.getTime() + expiredAt.toMillis()), user);
+    // SecretKey를 한 번만 생성하도록 캐싱
+    private SecretKey getSigningKey() {
+        if (cachedSecretKey == null) {
+            cachedSecretKey = Keys.hmacShaKeyFor(jwtProperties.getSecretKey().getBytes());
+        }
+        return cachedSecretKey;
     }
 
-    public String generateRefreshToken(User user, java.time.Duration expiredAt) {
+    public String generateAccessToken(User user) {
         Date now = new Date();
-        return makeToken(new Date(now.getTime() + expiredAt.toMillis()), user);
+        Date expiryDate = new Date(now.getTime() + jwtProperties.getAccessTokenExpirationMs());
+        return makeToken(expiryDate, user);
+    }
+
+    public String generateRefreshToken(User user) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + jwtProperties.getRefreshTokenExpirationMs());
+        return makeToken(expiryDate, user);
     }
 
     private String makeToken(Date expiry, User user) {
@@ -42,22 +52,42 @@ public class TokenProvider {
                 .issuer(jwtProperties.getIssuer())
                 .issuedAt(now)
                 .expiration(expiry)
-                .subject(user.getUsername())
+                .subject(user.getEmail())
                 .claim("id", user.getId())
-                .signWith(Keys.hmacShaKeyFor(jwtProperties.getSecretKey().getBytes()))
+                .claim("username", user.getUsername())
+                .claim("role", user.getRole().name())
+                .signWith(getSigningKey())
                 .compact();
     }
 
     public boolean validToken(String token) {
+        if (token == null || token.isBlank()) {
+            return false;
+        }
+
         try {
             Jwts.parser()
-                    .verifyWith(Keys.hmacShaKeyFor(jwtProperties.getSecretKey().getBytes()))
+                    .verifyWith(getSigningKey())
                     .build()
                     .parseSignedClaims(token);
             return true;
+        } catch (ExpiredJwtException e) {
+            // 토큰이 만료되었을 때
+            System.err.println("JWT token is expired: " + e.getMessage());
+        } catch (MalformedJwtException e) {
+            // 유효하지 않은 JWT (형식 오류)
+            System.err.println("Invalid JWT token: " + e.getMessage());
+        } catch (UnsupportedJwtException e) {
+            // 지원되지 않는 JWT 토큰
+            System.err.println("JWT token is unsupported: " + e.getMessage());
+        } catch (IllegalArgumentException e) {
+            // JWT 클레임 문자열이 비어있음
+            System.err.println("JWT claims string is empty: " + e.getMessage());
         } catch (Exception e) {
-            return false;
+            // 기타 모든 예외
+            System.err.println("JWT validation error: " + e.getMessage());
         }
+        return false;
     }
 
     public Authentication getAuthentication(String token) {
@@ -70,14 +100,22 @@ public class TokenProvider {
 
     private Claims getClaims(String token) {
         return Jwts.parser()
-                .verifyWith(Keys.hmacShaKeyFor(jwtProperties.getSecretKey().getBytes()))
+                .verifyWith(getSigningKey())
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
     }
 
-    public String getUserIdFromToken(String token) {
-        return getClaims(token).getId();
+    public Long getUserIdFromToken(String token) {
+        return getClaims(token).get("id", Long.class);
+    }
+
+    public String getUsernameFromToken(String token) {
+        return getClaims(token).get("username", String.class); // "username" 클레임에서 String 타입으로 가져옴
+    }
+
+    public String getUserRoleFromToken(String token) {
+        return getClaims(token).get("role", String.class); // "role" 클레임에서 String 타입으로 가져옴
     }
 
 }

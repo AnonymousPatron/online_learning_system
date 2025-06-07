@@ -16,6 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Optional;
 
 @RequiredArgsConstructor
 @Component
@@ -26,67 +27,48 @@ public class TokenAuthenticationFilter extends OncePerRequestFilter {
     private final static String HEADER_AUTHORIZATION = "Authorization";
     private final static String TOKEN_PREFIX = "Bearer ";
 
-//    @Override
-//    protected void doFilterInternal(
-//            HttpServletRequest request,
-//            @NonNull HttpServletResponse response,
-//            @NonNull FilterChain filterChain)  throws ServletException, IOException {
-//
-//        String authorizationHeader = request.getHeader(HEADER_AUTHORIZATION);
-//        String token = getAccessToken(authorizationHeader);
-//
-//        if (tokenProvider.validToken(token)) {
-//            Authentication authentication = tokenProvider.getAuthentication(token);
-//            SecurityContextHolder.getContext().setAuthentication(authentication);
-//        }
-//
-//        filterChain.doFilter(request, response);
-//    }
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
             @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain)  throws ServletException, IOException {
+            @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        System.out.println("doFilterInternal");
-        // 1. Authorization 헤더에서 토큰 추출 시도 (기존 로직)
-        String token = getAccessToken(request.getHeader(HEADER_AUTHORIZATION));
-        System.out.println("token: " + token);
-        // 2. 만약 헤더에 없으면 쿠키에서 토큰 추출 시도 (추가된 로직)
-        if (token == null) {
-            Cookie[] cookies = request.getCookies();
-            System.out.println("cookies: " + Arrays.toString(cookies));
-            if (cookies != null) {
-                System.out.println("Found cookies");
-                for (Cookie cookie : cookies) {
-                    if ("accessToken".equals(cookie.getName())) {
-                        System.out.println("Found cookie");
-                        token = cookie.getValue();
-                        break;
-                    }
-                }
-            }
+        // 1. Authorization 헤더에서 토큰 추출 (표준 방식)
+        String token = getAccessTokenFromHeader(request.getHeader(HEADER_AUTHORIZATION));
+
+        // 2. Authorization 헤더에 없으면 "accessToken" 쿠키에서 추출 (HTTP Only 쿠키)
+        if (token == null || token.isBlank()) {
+            token = getAccessTokenFromCookie(request.getCookies());
         }
 
         // 3. 추출된 토큰으로 유효성 검사 및 SecurityContext 설정
-        if (tokenProvider.validToken(token)) {
+        if (token != null && tokenProvider.validToken(token)) {
             Authentication authentication = tokenProvider.getAuthentication(token);
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } else {
-            // 토큰이 없거나 유효하지 않은 경우, SecurityContext를 비워줌
-            // 이렇게 하지 않으면 이전에 설정된 인증 정보가 남아있을 수 있습니다.
+            // 토큰이 없거나 유효하지 않으면 SecurityContext 초기화
             SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);
     }
 
-    private String getAccessToken(String authorizationHeader) {
+    private String getAccessTokenFromHeader(String authorizationHeader) {
         if (authorizationHeader != null && authorizationHeader.startsWith(TOKEN_PREFIX)) {
             return authorizationHeader.substring(TOKEN_PREFIX.length());
         }
-
         return null;
     }
 
+    private String getAccessTokenFromCookie(Cookie[] cookies) {
+        if (cookies != null) {
+            Optional<Cookie> accessTokenCookie = Arrays.stream(cookies)
+                    .filter(cookie -> "accessToken".equals(cookie.getName()))
+                    .findFirst();
+            if (accessTokenCookie.isPresent()) {
+                return accessTokenCookie.get().getValue();
+            }
+        }
+        return null;
+    }
 }
