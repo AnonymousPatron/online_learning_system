@@ -6,9 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.Duration;
 import java.time.Instant;
-import java.util.Date;
 
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
@@ -20,8 +18,8 @@ public class RefreshToken {
     @Column(name = "id", updatable = false)
     private Long id;
 
-    @Column(name = "user_id", nullable = false, unique = true)
-    private Long userId;
+    @Column(name = "users_id", nullable = false, unique = true)
+    private Long usersId;
 
     @Column(name = "refresh_token", nullable = false, length = 1000)
     private String refreshToken;
@@ -30,8 +28,8 @@ public class RefreshToken {
     private Instant expiryDate;
 
     @Builder
-    public RefreshToken(Long userId, String refreshToken, Instant expiryDate) {
-        this.userId = userId;
+    public RefreshToken(Long usersId, String refreshToken, Instant expiryDate) {
+        this.usersId = usersId;
         this.refreshToken = refreshToken;
         this.expiryDate = expiryDate;
     }

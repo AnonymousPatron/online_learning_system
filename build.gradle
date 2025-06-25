@@ -23,8 +23,8 @@ dependencies {
     implementation 'io.jsonwebtoken:jjwt-impl:0.12.6'
     implementation 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
-    // mysql
-    implementation 'com.mysql:mysql-connector-j:9.3.0'
+    // postgresql
+    runtimeOnly 'org.postgresql:postgresql:42.7.6'
 
     // lombok
     annotationProcessor 'org.projectlombok:lombok:1.18.38'

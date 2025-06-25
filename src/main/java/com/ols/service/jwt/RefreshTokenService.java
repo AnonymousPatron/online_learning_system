@@ -1,19 +1,14 @@
 package com.ols.service.jwt;
 
-import com.ols.config.jwt.JwtProperties;
 import com.ols.entity.RefreshToken;
-import com.ols.entity.User;
 import com.ols.repository.RefreshTokenRepository;
-import com.ols.repository.UserRepository;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
+import com.ols.repository.UsersRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Date;
 import java.util.Optional;
 
 @RequiredArgsConstructor
@@ -21,11 +16,11 @@ import java.util.Optional;
 public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
-    private final UserRepository userRepository;
+    private final UsersRepository usersRepository;
 
     @Transactional
     public RefreshToken saveOrUpdateRefreshToken(Long userId, String newRefreshToken, Duration expiration) {
-        Optional<RefreshToken> existingToken = refreshTokenRepository.findByUserId(userId);
+        Optional<RefreshToken> existingToken = refreshTokenRepository.findByUsersId(userId);
         Instant expiryDate = Instant.now().plus(expiration);
 
         if (existingToken.isPresent()) {
@@ -36,7 +31,7 @@ public class RefreshTokenService {
         } else {
             // 없으면 새로 생성
             return refreshTokenRepository.save(RefreshToken.builder()
-                    .userId(userId)
+                    .usersId(userId)
                     .refreshToken(newRefreshToken)
                     .expiryDate(expiryDate)
                     .build());
@@ -51,13 +46,13 @@ public class RefreshTokenService {
 
     @Transactional
     public void deleteRefreshToken(Long userId) {
-        refreshTokenRepository.deleteByUserId(userId);
+        refreshTokenRepository.deleteByUsersId(userId);
     }
 
     @Transactional
     public RefreshToken updateRefreshToken(Long userId, String newRefreshToken, Duration expiration) {
         // 기존 토큰 찾기 (없으면 예외 발생 또는 새로 생성 로직)
-        RefreshToken refreshToken = refreshTokenRepository.findByUserId(userId)
+        RefreshToken refreshToken = refreshTokenRepository.findByUsersId(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Refresh token not found for user: " + userId));
 
         // Refresh Token Rotation: 이전 토큰 무효화 및 새 토큰으로 업데이트

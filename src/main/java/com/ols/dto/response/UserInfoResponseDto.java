@@ -1,4 +1,4 @@
-package com.ols.dto;
+package com.ols.dto.response;
 
 import com.ols.common.Role;
 import lombok.Builder;

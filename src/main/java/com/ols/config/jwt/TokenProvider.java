@@ -1,16 +1,16 @@
 package com.ols.config.jwt;
 
-import com.ols.entity.User;
+import com.ols.entity.Users;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Set;
@@ -30,19 +30,19 @@ public class TokenProvider {
         return cachedSecretKey;
     }
 
-    public String generateAccessToken(User user) {
+    public String generateAccessToken(Users users) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtProperties.getAccessTokenExpirationMs());
-        return makeToken(expiryDate, user);
+        return makeToken(expiryDate, users);
     }
 
-    public String generateRefreshToken(User user) {
+    public String generateRefreshToken(Users users) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtProperties.getRefreshTokenExpirationMs());
-        return makeToken(expiryDate, user);
+        return makeToken(expiryDate, users);
     }
 
-    private String makeToken(Date expiry, User user) {
+    private String makeToken(Date expiry, Users users) {
         Date now = new Date();
 
         return Jwts.builder()
@@ -52,12 +52,12 @@ public class TokenProvider {
                 .issuer(jwtProperties.getIssuer())
                 .issuedAt(now)
                 .expiration(expiry)
-                .subject(user.getEmail())
-                .claim("id", user.getId())
-                .claim("username", user.getUsername())
-                .claim("role", user.getRole().name())
+                .subject(users.getEmail())
+                .claim("id", users.getId())
+                .claim("username", users.getUsername())
+                .claim("role", users.getRole().name())
                 .signWith(getSigningKey())
-                .compact();
+                .compact(); // 직렬화
     }
 
     public boolean validToken(String token) {
@@ -71,20 +71,15 @@ public class TokenProvider {
                     .build()
                     .parseSignedClaims(token);
             return true;
-        } catch (ExpiredJwtException e) {
-            // 토큰이 만료되었을 때
+        } catch (ExpiredJwtException e) { // 토큰이 만료되었을 때
             System.err.println("JWT token is expired: " + e.getMessage());
-        } catch (MalformedJwtException e) {
-            // 유효하지 않은 JWT (형식 오류)
+        } catch (MalformedJwtException e) { // 유효하지 않은 JWT (형식 오류)
             System.err.println("Invalid JWT token: " + e.getMessage());
-        } catch (UnsupportedJwtException e) {
-            // 지원되지 않는 JWT 토큰
+        } catch (UnsupportedJwtException e) { // 지원되지 않는 JWT 토큰
             System.err.println("JWT token is unsupported: " + e.getMessage());
-        } catch (IllegalArgumentException e) {
-            // JWT 클레임 문자열이 비어있음
+        } catch (IllegalArgumentException e) { // JWT 클레임 문자열이 비어있음
             System.err.println("JWT claims string is empty: " + e.getMessage());
-        } catch (Exception e) {
-            // 기타 모든 예외
+        } catch (Exception e) { // 기타 모든 예외
             System.err.println("JWT validation error: " + e.getMessage());
         }
         return false;
@@ -92,10 +87,16 @@ public class TokenProvider {
 
     public Authentication getAuthentication(String token) {
         Claims claims = getClaims(token);
-        Set<SimpleGrantedAuthority> authorities = Collections.singleton(new SimpleGrantedAuthority("ROLE_USER"));
+        Long userId = claims.get("id", Long.class);
+        String role = claims.get("role", String.class);
 
-        return new UsernamePasswordAuthenticationToken(new org.springframework.security.core.userdetails.User(claims.getSubject
-                (), "", authorities), token, authorities);
+        if (userId == null) {
+            throw new BadCredentialsException("Invalid token");
+        }
+
+        Set<SimpleGrantedAuthority> authorities = Collections.singleton(new SimpleGrantedAuthority("ROLE_" + role));
+
+        return new UsernamePasswordAuthenticationToken(userId, null, authorities);
     }
 
     private Claims getClaims(String token) {
@@ -108,14 +109,6 @@ public class TokenProvider {
 
     public Long getUserIdFromToken(String token) {
         return getClaims(token).get("id", Long.class);
-    }
-
-    public String getUsernameFromToken(String token) {
-        return getClaims(token).get("username", String.class); // "username" 클레임에서 String 타입으로 가져옴
-    }
-
-    public String getUserRoleFromToken(String token) {
-        return getClaims(token).get("role", String.class); // "role" 클레임에서 String 타입으로 가져옴
     }
 
 }

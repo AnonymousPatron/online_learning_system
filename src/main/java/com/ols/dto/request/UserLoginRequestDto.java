@@ -1,4 +1,4 @@
-package com.ols.dto;
+package com.ols.dto.request;
 
 import lombok.Getter;
 import lombok.Setter;

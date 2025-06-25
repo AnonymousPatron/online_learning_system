@@ -2,13 +2,18 @@ package com.ols.entity;
 
 import com.ols.common.CourseStatus;
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
+@NoArgsConstructor
 @Entity
 @Getter
 @Setter
@@ -26,7 +31,7 @@ public class Course {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "teacher_id", nullable = false)
-    private Teacher teacher;
+    private Teacher teacher; // 담당 선생
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -38,10 +43,18 @@ public class Course {
             joinColumns = @JoinColumn(name = "course_id"),
             inverseJoinColumns = @JoinColumn(name = "student_id")
     )
-    private Set<Student> students = new HashSet<>();
+    private List<Student> students = new ArrayList<>();
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    @Builder
+    public Course(String courseName, String description, Teacher teacher, CourseStatus status) {
+        this.courseName = courseName;
+        this.description = description;
+        this.teacher = teacher;
+        this.status = status;
+    }
 
     @PrePersist
     protected void onCreate() {
@@ -52,6 +65,10 @@ public class Course {
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateStatus(CourseStatus status) {
+        this.status = status;
     }
 
 }

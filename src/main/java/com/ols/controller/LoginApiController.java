@@ -1,11 +1,15 @@
 package com.ols.controller;
 
+import com.ols.common.Role;
 import com.ols.config.jwt.JwtProperties;
 import com.ols.config.jwt.TokenProvider;
-import com.ols.dto.UserLoginRequestDto;
-import com.ols.dto.UserSignupRequestDto;
+import com.ols.dto.request.UserLoginRequestDto;
+import com.ols.dto.request.UserSignupRequestDto;
 import com.ols.entity.RefreshToken;
-import com.ols.entity.User;
+import com.ols.entity.Users;
+import com.ols.service.AdminService;
+import com.ols.service.StudentService;
+import com.ols.service.TeacherService;
 import com.ols.service.UserService;
 import com.ols.service.jwt.RefreshTokenService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -29,21 +33,38 @@ import java.time.Instant;
 
 @RequiredArgsConstructor
 @RestController
-public class UserLoginApiController {
+public class LoginApiController {
 
     private final AuthenticationManager authenticationManager;
     private final RefreshTokenService refreshTokenService;
     private final JwtProperties jwtProperties;
     private final TokenProvider tokenProvider;
+
     private final UserService userService;
+    private final TeacherService teacherService;
+    private final StudentService studentService;
+    private final AdminService adminService;
 
     @PostMapping("/signup")
-    public ResponseEntity<String> signup(@RequestBody UserSignupRequestDto requestDto) {
+    public ResponseEntity<Users> signup(@RequestBody UserSignupRequestDto requestDto) {
         try {
-            userService.save(requestDto);
-            return ResponseEntity.status(HttpStatus.CREATED).body("회원가입 완료");
+            Users user = userService.save(requestDto);
+
+            switch (requestDto.getRole()) {
+                case Role.TEACHER:
+                    teacherService.save(user);
+                    break;
+                case Role.STUDENT:
+                    studentService.save(user);
+                    break;
+                case Role.ADMIN:
+                    adminService.save(user);
+                    break;
+            }
+
+            return ResponseEntity.ok(user);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("회원가입 실패");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
@@ -56,12 +77,12 @@ public class UserLoginApiController {
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            User user = (User) authentication.getPrincipal();
+            Users users = (Users) authentication.getPrincipal();
 
-            String accessToken = tokenProvider.generateAccessToken(user);
-            String refreshToken = tokenProvider.generateRefreshToken(user);
+            String accessToken = tokenProvider.generateAccessToken(users);
+            String refreshToken = tokenProvider.generateRefreshToken(users);
 
-            refreshTokenService.saveOrUpdateRefreshToken(user.getId(), refreshToken, Duration.ofDays(7));
+            refreshTokenService.saveOrUpdateRefreshToken(users.getId(), refreshToken, Duration.ofDays(7));
             // HttpOnly 쿠키에 access Token 저장
             ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", accessToken)
                     .httpOnly(true)
@@ -108,17 +129,17 @@ public class UserLoginApiController {
         // 3. Refresh Token의 만료 시간 확인 (DB 기준)
         if (storedRefreshToken.getExpiryDate().isBefore(Instant.now())) {
             // DB의 Refresh Token도 만료되었다면 삭제하고 UNATHORIZED
-            refreshTokenService.deleteRefreshToken(storedRefreshToken.getUserId()); // 만료된 토큰 삭제
+            refreshTokenService.deleteRefreshToken(storedRefreshToken.getUsersId()); // 만료된 토큰 삭제
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Expired refresh token in DB. Please re-login.");
         }
 
         // 4. 새로운 Access Token 및 Refresh Token 발급 (Refresh Token Rotation)
-        User user = userService.findById(storedRefreshToken.getUserId());
-        String newAccessToken = tokenProvider.generateAccessToken(user);
-        String newRefreshToken = tokenProvider.generateRefreshToken(user);
+        Users users = userService.findById(storedRefreshToken.getUsersId());
+        String newAccessToken = tokenProvider.generateAccessToken(users);
+        String newRefreshToken = tokenProvider.generateRefreshToken(users);
 
         // 5. DB의 Refresh Token 업데이트 (기존 토큰 무효화)
-        refreshTokenService.updateRefreshToken(user.getId(), newRefreshToken, Duration.ofDays(7));
+        refreshTokenService.updateRefreshToken(users.getId(), newRefreshToken, Duration.ofDays(7));
 
         // 6. 새로운 토큰들을 HTTP Only 쿠키로 전송
         ResponseCookie newAccessTokenCookie = ResponseCookie.from("accessToken", newAccessToken)

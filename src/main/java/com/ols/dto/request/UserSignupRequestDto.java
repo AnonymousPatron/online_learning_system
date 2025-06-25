@@ -1,4 +1,4 @@
-package com.ols.dto;
+package com.ols.dto.request;
 
 import com.ols.common.Role;
 import lombok.Getter;
